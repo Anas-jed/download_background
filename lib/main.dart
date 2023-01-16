@@ -49,13 +49,6 @@ class _MyHomePageState extends State<MyHomePage> {
   int _counter1 = 0;
   String filesDir = '';
 
-  // void _incrementCounter() async {
-  //   // setState(() {
-  //   //   _counter++;
-  //   // });
-  //   startDownloading();
-  // }
-
   startDownloading(int id, String name) async {
     String pathToSave = await getFileDirectory();
 
@@ -94,26 +87,6 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   @override
-  void initState() {
-    super.initState();
-
-    eventBus.on<DownloadEvent>().listen((event) {
-      setState(() {
-        if (event.id == 12) {
-          _counter = event.progress;
-        } else if (event.id == 54) {
-          _counter1 = event.progress;
-        }
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -129,14 +102,45 @@ class _MyHomePageState extends State<MyHomePage> {
             // const SizedBox(
             //   height: 10,
             // ),
+
+            // SizedBox(
+            //   height: 30,
+            //   child: StreamBuilder(
+            //     // initialData: -1,
+            //     stream: AppService.getInstance.streamController!.stream,
+
+            //     builder: (context, snapshot) {
+            //       log('ddddd; ${snapshot.data}');
+            //       if (snapshot.hasError) {
+            //         return Text('Error: ${snapshot.error}');
+            //       }
+            //       if (!snapshot.hasData) {
+            //         return const CircularProgressIndicator();
+            //       }
+            //       // Use the data from the stream
+            //       final data = snapshot.data;
+
+            //       final downloaded = data.downloaded;
+            //       final total = data.total;
+            //       final progress = downloaded / total;
+            //       // Use the progress to show download progress
+            //       return Text('progress: $progress');
+            //     },
+            //   ),
+            // ),
+            const SizedBox(
+              height: 10,
+            ),
             ListView.separated(
                 shrinkWrap: true,
                 padding: const EdgeInsets.all(15.0),
                 itemBuilder: (context, index) {
                   return FileItemWidget(
                     fileModel: dummyFileModel[index],
+                    index: index,
                     onTap: () {
                       log('tapped $index');
+                      AppService.getInstance.addToQueue(dummyFileModel[index]);
                     },
                   );
                 },
@@ -167,11 +171,14 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             Row(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Downloaded Files: $filesDir',
-                    style: Theme.of(context).textTheme.headline6,
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Downloaded Files: $filesDir',
+                      maxLines: 10,
+                      style: Theme.of(context).textTheme.headline6,
+                    ),
                   ),
                 ),
               ],
@@ -182,27 +189,6 @@ class _MyHomePageState extends State<MyHomePage> {
       floatingActionButton: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // FloatingActionButton(
-          //   onPressed: () {
-          //     startDownloading(12, 'file1');
-          //   },
-          //   tooltip: 'Increment',
-          //   backgroundColor: Colors.red,
-          //   child: const Icon(Icons.add),
-          // ),
-          // const SizedBox(
-          //   width: 10,
-          // ),
-          // FloatingActionButton(
-          //   onPressed: () {
-          //     startDownloading(54, 'file2');
-          //   },
-          //   tooltip: 'Increment',
-          //   child: const Icon(Icons.add),
-          // ),
-          // const SizedBox(
-          //   width: 10,
-          // ),
           FloatingActionButton(
             onPressed: () {
               showFiles();
@@ -217,11 +203,40 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class FileItemWidget extends StatelessWidget {
+class FileItemWidget extends StatefulWidget {
   final FileModel fileModel;
   final VoidCallback onTap;
-  const FileItemWidget({Key? key, required this.fileModel, required this.onTap})
+  final int index;
+  const FileItemWidget(
+      {Key? key,
+      required this.fileModel,
+      required this.onTap,
+      required this.index})
       : super(key: key);
+
+  @override
+  State<FileItemWidget> createState() => _FileItemWidgetState();
+}
+
+class _FileItemWidgetState extends State<FileItemWidget> {
+  String progress = '0%';
+  bool isDownloading = false;
+  @override
+  void initState() {
+    super.initState();
+    eventBus.on<Downloading>().listen((event) {
+      if (int.parse(event.progress) > 80) {
+        log('DownloadingEvent Listen : ${event.fileModel.name}');
+      }
+
+      if (widget.fileModel.name == event.fileModel.name) {
+        setState(() {
+          progress = event.progress;
+          isDownloading = true;
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -232,15 +247,17 @@ class FileItemWidget extends StatelessWidget {
       child: Row(
         children: [
           SpringWidget(
-            onTap: onTap,
+            onTap: widget.onTap,
             child: Container(
               // color: Colors.red,
               child: Padding(
                 padding: const EdgeInsets.all(15.0),
-                child: SvgPicture.asset(
-                  'assets/download.svg',
-                  color: Colors.green,
-                ),
+                child: isDownloading
+                    ? Text('$progress%')
+                    : SvgPicture.asset(
+                        'assets/download.svg',
+                        color: Colors.green,
+                      ),
               ),
             ),
           ),
@@ -248,7 +265,7 @@ class FileItemWidget extends StatelessWidget {
             width: 10,
           ),
           Text(
-            fileModel.name,
+            widget.fileModel.name,
             style: Theme.of(context).textTheme.headline6,
           )
         ],
